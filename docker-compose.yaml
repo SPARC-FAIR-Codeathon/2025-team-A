@@ -1,0 +1,10 @@
+services:
+
+  synapse:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: SYNAPSE
+    ports:
+      - 80:80
+    restart: always
