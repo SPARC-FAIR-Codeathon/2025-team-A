@@ -1,50 +1,28 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
-from fastapi.responses import JSONResponse
-from app.src.models import load_models, generate_signal
-import os
-import wfdb
-import mne
+from fastapi import APIRouter, UploadFile, File
+import numpy as np
+import torch
+from scipy.io import wavfile
+from ..src.models import load_vae_model
 
 router = APIRouter()
-G_ecg, G_eeg = load_models()
 
-signal_len = 500
+vae_model, arch = load_vae_model()
 
-@router.post("/generate_eeg/")
-async def generate_eeg(file: UploadFile = File(...)):
-    ext = os.path.splitext(file.filename)[1]
-    if ext != ".edf":
-        raise HTTPException(400, "Only .edf files supported for EEG")
+@router.post("/generate/")
+async def generate_signal(file: UploadFile = File(...)):
+    # Read and normalize .wav
+    rate, signal = wavfile.read(file.file)
+    if signal.ndim > 1:
+        signal = signal.mean(axis=1)  # mono
+    signal = signal.astype(np.float32)
+    signal = (signal - signal.mean()) / signal.std()
 
-    with open("tmp.edf", "wb") as f:
-        f.write(await file.read())
+    # Generate from VAE
+    z = torch.randn(1, arch['latent_dim'])
+    with torch.no_grad():
+        generated = vae_model.decode(z).cpu().numpy().squeeze()
 
-    try:
-        raw = mne.io.read_raw_edf("tmp.edf", preload=True, verbose=False)
-        real = raw.get_data()[0][:signal_len]
-    except Exception as e:
-        raise HTTPException(400, f"EEG parse failed: {e}")
-
-    fake = generate_signal(G_eeg)
-    return JSONResponse({"type": "EEG", "real": real.tolist(), "fake": fake.tolist()})
-
-
-@router.post("/generate_ecg/")
-async def generate_ecg(
-    dat_file: UploadFile = File(...),
-    hea_file: UploadFile = File(...)
-):
-    base = dat_file.filename.replace(".dat", "")
-    with open(base + ".dat", "wb") as f:
-        f.write(await dat_file.read())
-    with open(base + ".hea", "wb") as f:
-        f.write(await hea_file.read())
-
-    try:
-        record = wfdb.rdrecord(base)
-        real = record.p_signal[:, 0][:signal_len]
-    except Exception as e:
-        raise HTTPException(400, f"ECG parse failed: {e}")
-
-    fake = generate_signal(G_ecg)
-    return JSONResponse({"type": "ECG", "real": real.tolist(), "fake": fake.tolist()})
+    return {
+        "samples": generated.tolist(),
+        "length": len(generated)
+    }

@@ -1,37 +1,14 @@
 import torch
-from torch import nn
+import numpy as np
+from .vae_dynamic import VAE1D_Dynamic
 
-z_dim = 100
-signal_len = 500
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-class Generator(nn.Module):
-    def __init__(self, z_dim=100, signal_len=500):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(z_dim, 256),
-            nn.ReLU(),
-            nn.Linear(256, 512),
-            nn.ReLU(),
-            nn.Linear(512, signal_len),
-            nn.Tanh(),
-        )
-
-    def forward(self, z):
-        return self.net(z)
-
-def load_models():
-    G_ecg = Generator(z_dim, signal_len).to(device)
-    G_ecg.load_state_dict(torch.load("G_ecg.pth", map_location=device))
-    G_ecg.eval()
-
-    G_eeg = Generator(z_dim, signal_len).to(device)
-    G_eeg.load_state_dict(torch.load("G_eeg.pth", map_location=device))
-    G_eeg.eval()
-
-    return G_ecg, G_eeg
-
-def generate_signal(G):
-    z = torch.randn(1, z_dim).to(device)
-    with torch.no_grad():
-        return G(z).cpu().numpy().flatten()
+def load_vae_model(model_path="vae_model.pt", arch_path="arch_params.npy"):
+    arch_params = np.load(arch_path, allow_pickle=True).item()
+    model = VAE1D_Dynamic(
+        input_length=arch_params["segment_length"],
+        latent_dim=arch_params["latent_dim"],
+        filters=arch_params["filters"]
+    )
+    model.load_state_dict(torch.load(model_path, map_location="cpu"))
+    model.eval()
+    return model, arch_params
