@@ -90,3 +90,13 @@ curl -X 'POST' \
 
 ---
 
+### 🎞️ Signal Demos
+
+#### ECG Signal
+
+![ECG Demo](docs/ECG.gif)
+
+#### EEG Signal
+
+![EEG Demo](docs/EEG.gif)
+
