@@ -140,7 +140,8 @@ def package_dataset(dataset_id, output_dir):
         archive_path = Path(output_dir) / f"{dataset_id}"
         shutil.make_archive(str(archive_path), 'zip', temp_dir)
         
-        final_archive_path = Path(output_dir) / f"{dataset_id}.sparc"
+        # The line below has been changed to use the .sparchive extension
+        final_archive_path = Path(output_dir) / f"{dataset_id}.sparchive"
         if final_archive_path.exists():
             os.remove(final_archive_path)
         shutil.move(f"{archive_path}.zip", final_archive_path)
