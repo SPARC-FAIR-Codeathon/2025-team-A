@@ -1,0 +1,35 @@
+# Node.js / Electron / React Dependencies
+node_modules/
+
+# Python Virtual Environment
+venv/
+__pycache__/
+*.pyc
+
+# Build output from React and Electron
+# We ignore the whole folder but make exceptions for our icon files
+viewer/build/*
+!viewer/build/icon.icns
+!viewer/build/icon.ico
+dist/
+release/
+
+# Generated Data
+# Ignore any downloaded .sparc files and temporary folders
+*.sparc
+temp_*
+sparc_archives/
+
+# Logs
+npm-debug.log*
+yarn-error.log*
+
+# OS-specific files
+.DS_Store
+
+# Editor directories
+.vscode/
+.idea/
+
+packager/
+viewer/
