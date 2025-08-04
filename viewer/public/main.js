@@ -24,7 +24,8 @@ async function createWindow() {
   });
 
   win.loadURL('http://localhost:3000');
-  // win.webContents.openDevTools(); // This line has been removed
+  // To open developer tools, uncomment the line below
+  // win.webContents.openDevTools();
 }
 
 app.whenReady().then(createWindow);
@@ -37,35 +38,27 @@ app.on('window-all-closed', () => {
 
 // --- IPC Handlers ---
 
-ipcMain.on('library:open-location', (event, filePath) => {
-  if (filePath && fs.existsSync(filePath)) {
-    shell.showItemInFolder(filePath);
-  }
-});
-
-ipcMain.handle('library:delete', (event, datasetId) => {
+// NEW: Handles browsing for datasets
+ipcMain.handle('sparc:browse', async (event, { query, page, limit }) => {
+  const options = {
+    mode: 'text',
+    pythonPath: path.join(app.getAppPath(), '..', 'packager', 'venv', 'bin', 'python'),
+    pythonOptions: ['-u'],
+    scriptPath: path.join(app.getAppPath(), 'scripts'),
+    args: ['browse', '--query', query, '--page', String(page), '--limit', String(limit)],
+  };
+  
   try {
-    const library = store.get('library', []);
-    const datasetToDelete = library.find(item => item.id === datasetId);
-
-    if (datasetToDelete) {
-      if (fs.existsSync(datasetToDelete.path)) {
-        fs.unlinkSync(datasetToDelete.path);
-      }
-      const updatedLibrary = library.filter(item => item.id !== datasetId);
-      store.set('library', updatedLibrary);
-      return updatedLibrary;
+    const results = await PythonShell.run('packager.py', options);
+    // The python script prints a single line of JSON
+    const parsedResult = JSON.parse(results[0]);
+    if (parsedResult.error) {
+      throw new Error(parsedResult.error);
     }
-    return library;
-  } catch (e) {
-    console.error("Error deleting dataset:", e);
-    return store.get('library', []);
-  }
-});
-
-ipcMain.on('packager:confirm', (event, confirmed) => {
-  if (activePackagerShell) {
-    activePackagerShell.send(confirmed ? 'confirm' : 'cancel');
+    return parsedResult;
+  } catch (err) {
+    console.error("Failed to browse datasets:", err);
+    return { error: err.message || 'An unknown error occurred in the Python script.' };
   }
 });
 
@@ -87,7 +80,8 @@ ipcMain.on('packager:start', (event, datasetId) => {
     pythonPath: path.join(app.getAppPath(), '..', 'packager', 'venv', 'bin', 'python'),
     pythonOptions: ['-u'],
     scriptPath: path.join(app.getAppPath(), 'scripts'),
-    args: [datasetId, outputDir],
+    // UPDATED: Use the 'package' command and pass arguments
+    args: ['package', datasetId, outputDir],
   };
 
   if (activePackagerShell && !activePackagerShell.killed) {
@@ -118,27 +112,16 @@ ipcMain.on('packager:start', (event, datasetId) => {
         store.set('library', currentLibrary);
       }
     } catch (e) {
-        // This can happen if the Python script prints something that isn't JSON.
-        // We can safely ignore it in this context.
+      // Ignore non-JSON messages from the script
     }
   });
-
+  
   activePackagerShell.on('stderr', (stderr) => {
     const messageString = String(stderr);
-
-    // Filter out known, harmless warnings from the Python script.
-    const isHarmlessWarning = 
-      messageString.includes('pkg_resources is deprecated') ||
-      messageString.includes('declare_namespace') ||
-      messageString.includes('SciCrunch API Key: Not Found');
-
-    if (isHarmlessWarning) {
-      // It's a known warning, so we do nothing and don't show it to the user.
-      return; 
+    const isHarmlessWarning = messageString.includes('pkg_resources is deprecated') || messageString.includes('declare_namespace') || messageString.includes('SciCrunch API Key: Not Found');
+    if (!isHarmlessWarning) {
+      win.webContents.send('packager:progress', { status: 'error', message: `Python Error: ${messageString}` });
     }
-
-    // If it's any other message, treat it as a real error.
-    win.webContents.send('packager:progress', { status: 'error', message: `Python Error: ${messageString}` });
   });
 
   activePackagerShell.on('close', () => {
@@ -146,7 +129,36 @@ ipcMain.on('packager:start', (event, datasetId) => {
   });
 });
 
+ipcMain.on('packager:confirm', (event, confirmed) => {
+  if (activePackagerShell) {
+    activePackagerShell.send(confirmed ? 'confirm' : 'cancel');
+  }
+});
+
 ipcMain.handle('library:get', () => store.get('library', []));
+
+ipcMain.handle('library:delete', (event, datasetId) => {
+  try {
+    const library = store.get('library', []);
+    const datasetToDelete = library.find(item => item.id === datasetId);
+    if (datasetToDelete && fs.existsSync(datasetToDelete.path)) {
+      fs.unlinkSync(datasetToDelete.path);
+    }
+    const updatedLibrary = library.filter(item => item.id !== datasetId);
+    store.set('library', updatedLibrary);
+    return updatedLibrary;
+  } catch (e) {
+    console.error("Error deleting dataset:", e);
+    return store.get('library', []);
+  }
+});
+
+ipcMain.on('library:open-location', (event, filePath) => {
+  if (filePath && fs.existsSync(filePath)) {
+    shell.showItemInFolder(filePath);
+  }
+});
+
 ipcMain.handle('sparc:getManifest', (event, filePath) => { try { const zip = new AdmZip(filePath); const manifestEntry = zip.getEntry('viewer_manifest.json'); return manifestEntry ? JSON.parse(manifestEntry.getData().toString('utf8')) : null; } catch (e) { return null; } });
 ipcMain.handle('sparc:getFileContent', (event, packagePath, internalPath) => { try { const zip = new AdmZip(packagePath); const fileEntry = zip.getEntry(internalPath); if (!fileEntry) return null; const buffer = fileEntry.getData(); const extension = path.extname(internalPath).toLowerCase(); const imageMimeTypes = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.svg': 'image/svg+xml' }; if (imageMimeTypes[extension]) return { type: 'image', mimeType: imageMimeTypes[extension], data: buffer.toString('base64') }; if (['.json', '.txt', '.md'].includes(extension)) return { type: 'text', data: buffer.toString('utf8') }; if (['.csv', '.tsv', '.xlsx'].includes(extension)) { let workbook; if (extension === '.xlsx') { workbook = xlsx.read(buffer, { type: 'buffer' }); } else { const textData = buffer.toString('utf8'); const delimiter = extension === '.tsv' ? '\t' : ','; workbook = xlsx.read(textData, { type: 'string', delimiter }); } const sheetName = workbook.SheetNames[0]; const worksheet = workbook.Sheets[sheetName]; const jsonData = xlsx.utils.sheet_to_json(worksheet, { header: 1 }); if (jsonData.length === 0) return { type: 'table', columns: [], rows: [] }; const columns = jsonData[0].map((header, index) => ({ key: `col_${index}`, name: String(header ?? '') })); const rows = jsonData.slice(1).map(row => { const rowObject = {}; columns.forEach((col, index) => { rowObject[col.key] = row[index]; }); return rowObject; }); return { type: 'table', columns, rows }; } return { type: 'unsupported' }; } catch (e) { console.error("Error getting file content:", e); return null; } });
 ipcMain.handle('sparc:downloadSingleFile', async (event, packagePath, internalPath, defaultFileName) => { const { canceled, filePath } = await dialog.showSaveDialog({ defaultPath: defaultFileName }); if (!canceled && filePath) { try { const zip = new AdmZip(packagePath); const fileEntry = zip.getEntry(internalPath); if (fileEntry) { fs.writeFileSync(filePath, fileEntry.getData()); return { success: true }; } } catch (e) { return { success: false, error: e.message }; } } return { success: false, error: 'Save canceled' }; });

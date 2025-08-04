@@ -1,6 +1,10 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  // NEW: Expose the browse function to the frontend
+  browseDatasets: (params) => ipcRenderer.invoke('sparc:browse', params),
+  
+  // Existing functions
   getManifest: (filePath) => ipcRenderer.invoke('sparc:getManifest', filePath),
   getFileContent: (packagePath, internalPath) => ipcRenderer.invoke('sparc:getFileContent', packagePath, internalPath),
   startPackaging: (datasetId) => ipcRenderer.send('packager:start', datasetId),
@@ -12,7 +16,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   confirmPackaging: (confirmed) => ipcRenderer.send('packager:confirm', confirmed),
   getLibrary: () => ipcRenderer.invoke('library:get'),
   deleteDataset: (datasetId) => ipcRenderer.invoke('library:delete', datasetId),
-  // Expose the new function to open the file location
   openDatasetLocation: (filePath) => ipcRenderer.send('library:open-location', filePath),
   downloadSingleFile: (packagePath, internalPath, defaultFileName) => ipcRenderer.invoke('sparc:downloadSingleFile', packagePath, internalPath, defaultFileName),
 });
