@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const AdmZip = require('adm-zip');
@@ -37,6 +37,13 @@ app.on('window-all-closed', () => {
 
 // --- IPC Handlers ---
 
+// New handler to open the file's location in the system's file explorer
+ipcMain.on('library:open-location', (event, filePath) => {
+  if (filePath && fs.existsSync(filePath)) {
+    shell.showItemInFolder(filePath);
+  }
+});
+
 ipcMain.handle('library:delete', (event, datasetId) => {
   try {
     const library = store.get('library', []);
@@ -57,7 +64,6 @@ ipcMain.handle('library:delete', (event, datasetId) => {
   }
 });
 
-// New handler to relay confirmation from the UI to the Python script
 ipcMain.on('packager:confirm', (event, confirmed) => {
   if (activePackagerShell) {
     activePackagerShell.send(confirmed ? 'confirm' : 'cancel');
@@ -85,7 +91,6 @@ ipcMain.on('packager:start', (event, datasetId) => {
     args: [datasetId, outputDir],
   };
 
-  // Ensure any old shell is terminated before starting a new one
   if (activePackagerShell && !activePackagerShell.killed) {
     activePackagerShell.kill();
   }

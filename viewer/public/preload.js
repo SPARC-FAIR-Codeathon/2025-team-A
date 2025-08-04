@@ -9,9 +9,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('packager:progress', listener);
     return () => ipcRenderer.removeListener('packager:progress', listener);
   },
-  // Expose the new confirmation function
   confirmPackaging: (confirmed) => ipcRenderer.send('packager:confirm', confirmed),
   getLibrary: () => ipcRenderer.invoke('library:get'),
   deleteDataset: (datasetId) => ipcRenderer.invoke('library:delete', datasetId),
+  // Expose the new function to open the file location
+  openDatasetLocation: (filePath) => ipcRenderer.send('library:open-location', filePath),
   downloadSingleFile: (packagePath, internalPath, defaultFileName) => ipcRenderer.invoke('sparc:downloadSingleFile', packagePath, internalPath, defaultFileName),
 });

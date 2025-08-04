@@ -197,13 +197,22 @@ const LibraryView = ({ library, onViewPackage, onDeleteRequest }) => {
                     <div key={pkg.id} className="bg-white rounded-2xl shadow-lg border border-gray-200 hover:shadow-xl hover:border-purple-300 transition-all flex flex-col group"> 
                         <div className="relative h-40 bg-gray-200 rounded-t-2xl flex items-center justify-center cursor-pointer" onClick={() => onViewPackage(pkg)}>
                             {pkg.thumbnail ? <img src={pkg.thumbnail} alt={`Thumbnail for dataset ${pkg.id}`} className="h-full w-full object-cover rounded-t-2xl" /> : <BrainCircuit className="w-16 h-16 text-gray-400" />}
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); onDeleteRequest(pkg); }}
-                                className="absolute top-2 right-2 p-1.5 bg-white/50 backdrop-blur-sm rounded-full text-gray-700 hover:bg-red-500 hover:text-white transition-all opacity-0 group-hover:opacity-100"
-                                title="Delete Dataset"
-                            >
-                                <Trash2 className="w-4 h-4" />
-                            </button>
+                            <div className="absolute top-2 right-2 flex space-x-2">
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); window.electronAPI.openDatasetLocation(pkg.path); }}
+                                    className="p-1.5 bg-white/50 backdrop-blur-sm rounded-full text-gray-700 hover:bg-blue-500 hover:text-white transition-all opacity-0 group-hover:opacity-100"
+                                    title="Open File Location"
+                                >
+                                    <FolderOpen className="w-4 h-4" />
+                                </button>
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); onDeleteRequest(pkg); }}
+                                    className="p-1.5 bg-white/50 backdrop-blur-sm rounded-full text-gray-700 hover:bg-red-500 hover:text-white transition-all opacity-0 group-hover:opacity-100"
+                                    title="Delete Dataset"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
                         <div className="p-4 flex flex-col flex-grow cursor-pointer" onClick={() => onViewPackage(pkg)}>
                             <p className="text-xs font-semibold text-purple-600 uppercase">Dataset {pkg.id}</p>
