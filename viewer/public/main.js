@@ -6,6 +6,7 @@ const { PythonShell } = require('python-shell');
 const xlsx = require('xlsx');
 
 let store; 
+let activePackagerShell = null; // Variable to hold the active Python shell
 
 async function createWindow() {
   const { default: Store } = await import('electron-store');
@@ -36,45 +37,39 @@ app.on('window-all-closed', () => {
 
 // --- IPC Handlers ---
 
-// IPC handler to delete a dataset from the library and filesystem
 ipcMain.handle('library:delete', (event, datasetId) => {
   try {
     const library = store.get('library', []);
     const datasetToDelete = library.find(item => item.id === datasetId);
 
     if (datasetToDelete) {
-      // 1. Delete the .sparc file from the filesystem
       if (fs.existsSync(datasetToDelete.path)) {
         fs.unlinkSync(datasetToDelete.path);
       }
-      
-      // 2. Filter out the deleted dataset from the library array
       const updatedLibrary = library.filter(item => item.id !== datasetId);
-      
-      // 3. Save the updated library back to the store
       store.set('library', updatedLibrary);
-      
-      // 4. Return the new, updated library to the renderer
       return updatedLibrary;
     }
-    // If dataset wasn't found for some reason, just return the current library
     return library;
   } catch (e) {
     console.error("Error deleting dataset:", e);
-    // On error, return the original library without making changes
     return store.get('library', []);
   }
 });
 
+// New handler to relay confirmation from the UI to the Python script
+ipcMain.on('packager:confirm', (event, confirmed) => {
+  if (activePackagerShell) {
+    activePackagerShell.send(confirmed ? 'confirm' : 'cancel');
+  }
+});
 
 ipcMain.on('packager:start', (event, datasetId) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   
-  // Check if the dataset already exists in the library before downloading
   const library = store.get('library', []);
   const existingDataset = library.find(item => String(item.id) === String(datasetId));
   if (existingDataset) {
-    // If it exists, send a specific status and stop.
     win.webContents.send('packager:progress', { status: 'exists', message: `Dataset ${datasetId} is already in your library.` });
     return;
   }
@@ -90,9 +85,14 @@ ipcMain.on('packager:start', (event, datasetId) => {
     args: [datasetId, outputDir],
   };
 
-  const pyshell = new PythonShell('packager.py', options);
+  // Ensure any old shell is terminated before starting a new one
+  if (activePackagerShell && !activePackagerShell.killed) {
+    activePackagerShell.kill();
+  }
 
-  pyshell.on('message', (message) => {
+  activePackagerShell = new PythonShell('packager.py', options);
+
+  activePackagerShell.on('message', (message) => {
     try {
       const progress = JSON.parse(message);
       win.webContents.send('packager:progress', progress);
@@ -116,8 +116,12 @@ ipcMain.on('packager:start', (event, datasetId) => {
     } catch (e) { /* Ignore non-json messages */ }
   });
 
-  pyshell.on('stderr', (stderr) => {
+  activePackagerShell.on('stderr', (stderr) => {
     win.webContents.send('packager:progress', { status: 'error', message: `Python Error: ${stderr}` });
+  });
+
+  activePackagerShell.on('close', () => {
+    activePackagerShell = null;
   });
 });
 

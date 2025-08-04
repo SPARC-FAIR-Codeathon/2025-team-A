@@ -7,6 +7,7 @@ import logging
 import warnings
 import base64
 import argparse
+import math
 
 import openpyxl
 from sparc.client import SparcClient
@@ -22,6 +23,16 @@ def send_message(status, message, value=None):
     if value is not None:
         payload["value"] = value
     print(json.dumps(payload), flush=True)
+
+def format_size(size_bytes):
+    """Converts bytes to a human-readable string."""
+    if size_bytes <= 0:
+        return "0B"
+    size_name = ("B", "KB", "MB", "GB", "TB")
+    i = int(math.floor(math.log(size_bytes, 1024)))
+    p = math.pow(1024, i)
+    s = round(size_bytes / p, 2)
+    return f"{s} {size_name[i]}"
 
 def build_file_tree(directory):
     """Recursively builds a nested dictionary representing a file/folder structure."""
@@ -39,7 +50,7 @@ def build_file_tree(directory):
     return tree
 
 def package_dataset(dataset_id, output_dir):
-    """Downloads a SPARC dataset and packages it into a .sparc file."""
+    """Downloads the latest version of a SPARC dataset and packages it."""
     client = SparcClient(connect=False)
     
     temp_dir = Path(output_dir) / f"temp_{dataset_id}"
@@ -49,12 +60,32 @@ def package_dataset(dataset_id, output_dir):
     temp_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        send_message("progress", "Fetching file list...")
-        files_to_download = client.pennsieve.list_files(dataset_id=dataset_id)
+        send_message("progress", "Fetching file list (Latest)...")
+        files_to_download = client.pennsieve.list_files(dataset_id=dataset_id, limit=10000)
         
         if not files_to_download:
             send_message("error", f"No files found for dataset {dataset_id}.")
             return
+
+        # --- New Confirmation Logic ---
+        # Sum the size of all files, handling cases where size might be missing.
+        total_size = sum(f.get('size', 0) or 0 for f in files_to_download)
+        formatted_size = format_size(total_size)
+        
+        # Send a confirmation request to the Electron app
+        send_message(
+            "confirm_download", 
+            f"Total dataset size is {formatted_size}. Proceed with download?",
+            {"totalSize": total_size, "formattedSize": formatted_size, "fileCount": len(files_to_download)}
+        )
+        
+        # Wait for a 'confirm' or 'cancel' signal from stdin
+        confirmation = sys.stdin.readline().strip()
+        
+        if confirmation != 'confirm':
+            send_message("idle", "Download cancelled by user.")
+            return
+        # --- End of New Logic ---
 
         total_files = len(files_to_download)
         original_cwd = os.getcwd()
@@ -79,14 +110,11 @@ def package_dataset(dataset_id, output_dir):
             try:
                 wb = openpyxl.load_workbook(desc_path)
                 sheet = wb.active
-                # Read metadata, stripping whitespace from keys for consistency
                 metadata = {str(row[0].value).strip(): row[1].value for row in sheet.iter_rows(min_row=1) if row[0] and row[0].value}
                 manifest['dataset_title'] = metadata.get('Title', 'N/A')
-                # Extract contributors/authors, checking for common field names
                 author_string = metadata.get('Contributors', metadata.get('Authors', metadata.get('Author', 'N/A')))
                 manifest['authors'] = str(author_string) if author_string else "N/A"
             except Exception:
-                # If parsing fails, we keep the default 'N/A' values
                 pass
         
         thumbnail_path = next((p for p in [temp_dir / 'thumbnail.jpg', temp_dir / 'thumbnail.png'] if p.exists()), None)

@@ -9,8 +9,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('packager:progress', listener);
     return () => ipcRenderer.removeListener('packager:progress', listener);
   },
+  // Expose the new confirmation function
+  confirmPackaging: (confirmed) => ipcRenderer.send('packager:confirm', confirmed),
   getLibrary: () => ipcRenderer.invoke('library:get'),
-  // Expose the new delete function
   deleteDataset: (datasetId) => ipcRenderer.invoke('library:delete', datasetId),
   downloadSingleFile: (packagePath, internalPath, defaultFileName) => ipcRenderer.invoke('sparc:downloadSingleFile', packagePath, internalPath, defaultFileName),
 });

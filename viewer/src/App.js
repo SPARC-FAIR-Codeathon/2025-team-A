@@ -68,47 +68,111 @@ const ConfirmDeleteModal = ({ dataset, onConfirm, onCancel }) => {
   );
 };
 
+// --- New Download Confirmation Modal ---
+const DownloadConfirmModal = ({ confirmationData, onConfirm, onCancel }) => {
+  if (!confirmationData) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+      <div className="bg-white rounded-2xl p-6 shadow-2xl max-w-md w-full">
+        <div className="flex items-start">
+          <DownloadCloud className="w-8 h-8 text-purple-600 mr-4 flex-shrink-0" />
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Confirm Download</h2>
+            <p className="mt-2 text-gray-600">
+              You are about to download a dataset with <span className="font-semibold">{confirmationData.fileCount} files</span>.
+            </p>
+            <p className="mt-2 text-lg font-bold text-gray-800">
+              Total Size: {confirmationData.formattedSize}
+            </p>
+          </div>
+        </div>
+        <div className="mt-6 flex justify-end space-x-3">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-200 text-gray-800 hover:bg-gray-300 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 rounded-lg text-sm font-semibold bg-purple-600 text-white hover:bg-purple-700 transition-colors"
+          >
+            Confirm & Download
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
 // --- Packager Component ---
 const PackagerView = () => {
     const [datasetId, setDatasetId] = useState('');
     const [progress, setProgress] = useState({ status: 'idle', message: '' });
+    const [downloadConfirmation, setDownloadConfirmation] = useState(null);
 
     useEffect(() => {
-        const handleProgress = (update) => setProgress(update);
+        const handleProgress = (update) => {
+            if (update.status === 'confirm_download') {
+                setDownloadConfirmation(update.value);
+            } else {
+                setProgress(update);
+            }
+        };
         const removeListener = window.electronAPI.onPackagingProgress(handleProgress);
         return () => { if (removeListener) removeListener(); };
     }, []);
 
     const handlePackage = () => {
         if (datasetId.trim()) {
-            setProgress({ status: 'starting', message: 'Initiating download...' });
+            setProgress({ status: 'starting', message: 'Checking dataset details...' });
             window.electronAPI.startPackaging(datasetId.trim());
         }
     };
 
+    const handleConfirmDownload = () => {
+        window.electronAPI.confirmPackaging(true);
+        setDownloadConfirmation(null);
+        setProgress({ status: 'progress', message: 'Download confirmed. Starting...' });
+    };
+
+    const handleCancelDownload = () => {
+        window.electronAPI.confirmPackaging(false);
+        setDownloadConfirmation(null);
+        setProgress({ status: 'idle', message: '' });
+    };
+
     return (
-        <div className="w-full p-8 flex justify-center items-center">
-            <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-lg border border-gray-200">
-                <h2 className="text-2xl font-bold text-center text-gray-900">Package a Dataset</h2>
-                <p className="text-center text-gray-600 mt-2">Enter a SPARC Dataset ID to download it.</p>
-                <div className="mt-6">
-                    <input type="text" value={datasetId} onChange={(e) => setDatasetId(e.target.value)} placeholder="e.g., 150" className="w-full bg-gray-100 border border-gray-300 rounded-lg py-3 px-4 text-gray-800 focus:ring-2 focus:ring-purple-500" disabled={progress.status === 'progress' || progress.status === 'starting'} />
-                    <button onClick={handlePackage} className="w-full mt-4 rounded-lg bg-purple-600 px-6 py-3 text-lg font-semibold text-white shadow-md hover:bg-purple-500 transition-all disabled:bg-gray-400" disabled={progress.status === 'progress' || progress.status === 'starting'}>
-                        Download & Package
-                    </button>
-                </div>
-                {progress.status !== 'idle' && (
-                    <div className="mt-6 text-center p-3 rounded-lg bg-gray-50">
-                        {progress.status === 'starting' && <><Loader className="animate-spin inline-block mr-2" /><span>{progress.message}</span></>}
-                        {progress.status === 'progress' && <><Loader className="animate-spin inline-block mr-2" /><span>{progress.message}</span></>}
-                        {progress.status === 'done' && <><CheckCircle2 className="inline-block mr-2 text-green-500" /><span>{progress.message}</span></>}
-                        {progress.status === 'error' && <><XCircle className="inline-block mr-2 text-red-500" /><span>Error: {progress.message}</span></>}
-                        {progress.status === 'exists' && <><AlertTriangle className="inline-block mr-2 text-yellow-500" /><span>{progress.message}</span></>}
+        <>
+            <DownloadConfirmModal
+                confirmationData={downloadConfirmation}
+                onConfirm={handleConfirmDownload}
+                onCancel={handleCancelDownload}
+            />
+            <div className="w-full p-8 flex justify-center items-center">
+                <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-lg border border-gray-200">
+                    <h2 className="text-2xl font-bold text-center text-gray-900">Package a Dataset</h2>
+                    <p className="text-center text-gray-600 mt-2">Enter a SPARC Dataset ID to download it.</p>
+                    <div className="mt-6">
+                        <input type="text" value={datasetId} onChange={(e) => setDatasetId(e.target.value)} placeholder="e.g., 150" className="w-full bg-gray-100 border border-gray-300 rounded-lg py-3 px-4 text-gray-800 focus:ring-2 focus:ring-purple-500" disabled={progress.status === 'progress' || progress.status === 'starting'} />
+                        <button onClick={handlePackage} className="w-full mt-4 rounded-lg bg-purple-600 px-6 py-3 text-lg font-semibold text-white shadow-md hover:bg-purple-500 transition-all disabled:bg-gray-400" disabled={progress.status === 'progress' || progress.status === 'starting'}>
+                            Download & Package
+                        </button>
                     </div>
-                )}
+                    {progress.status !== 'idle' && (
+                        <div className="mt-6 text-center p-3 rounded-lg bg-gray-50">
+                            {progress.status === 'starting' && <><Loader className="animate-spin inline-block mr-2" /><span>{progress.message}</span></>}
+                            {progress.status === 'progress' && <><Loader className="animate-spin inline-block mr-2" /><span>{progress.message}</span></>}
+                            {progress.status === 'done' && <><CheckCircle2 className="inline-block mr-2 text-green-500" /><span>{progress.message}</span></>}
+                            {progress.status === 'error' && <><XCircle className="inline-block mr-2 text-red-500" /><span>Error: {progress.message}</span></>}
+                            {progress.status === 'exists' && <><AlertTriangle className="inline-block mr-2 text-yellow-500" /><span>{progress.message}</span></>}
+                        </div>
+                    )}
+                </div>
             </div>
-        </div>
+        </>
     );
 };
 
@@ -142,7 +206,7 @@ const LibraryView = ({ library, onViewPackage, onDeleteRequest }) => {
                             </button>
                         </div>
                         <div className="p-4 flex flex-col flex-grow cursor-pointer" onClick={() => onViewPackage(pkg)}>
-                            <p className="text-xs font-semibold text-purple-600 uppercase">Dataset [{pkg.id}]</p>
+                            <p className="text-xs font-semibold text-purple-600 uppercase">Dataset {pkg.id}</p>
                             <h3 className="font-bold text-base text-gray-800 mt-1 flex-grow" title={pkg.title}>
                                 {pkg.title}
                             </h3>
