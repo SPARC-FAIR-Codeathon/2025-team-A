@@ -1,0 +1,6 @@
+mean_real: -0.005050
+mean_synthetic: -0.033207
+std_real: 0.942498
+std_synthetic: 0.268102
+mse: 0.966135
+max_diff: 7.201879
