@@ -1,47 +1,73 @@
 import React, { useState, useEffect } from 'react';
-import { Box, FolderOpen, File, Folder, BrainCircuit, Download, Library, XCircle, CheckCircle2, Loader, DownloadCloud } from 'lucide-react';
-// Changed to a default import, as indicated by the build error.
+import { Box, FolderOpen, File, Folder, BrainCircuit, Download, Library, XCircle, CheckCircle2, Loader, DownloadCloud, Users, Trash2, AlertTriangle } from 'lucide-react';
 import DataGrid from 'react-data-grid';
 import 'react-data-grid/lib/styles.css';
 
 // --- Error Boundary Component ---
-// This component catches errors in its children and displays a fallback UI.
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
     this.state = { hasError: false, error: null, errorInfo: null };
   }
-
   static getDerivedStateFromError(error) {
-    // Update state so the next render will show the fallback UI.
     return { hasError: true };
   }
-
   componentDidCatch(error, errorInfo) {
-    // We can log the error to an error reporting service here.
     console.error("Uncaught error in DataGrid component:", error, errorInfo);
     this.setState({ error: error, errorInfo: errorInfo });
   }
-
   render() {
     if (this.state.hasError) {
-      // Render any custom fallback UI.
       return (
         <div className="p-4 rounded-lg bg-red-50 border border-red-200">
           <h2 className="text-lg font-bold text-red-800">Something went wrong.</h2>
-          <p className="mt-2 text-red-700">There was an error trying to render this table. This can happen with very large or malformed spreadsheet files.</p>
-          {this.state.error && (
-            <pre className="mt-4 text-xs bg-red-100 p-2 rounded overflow-auto text-red-900">
-              {this.state.error.toString()}
-            </pre>
-          )}
+          <p className="mt-2 text-red-700">There was an error trying to render this table.</p>
         </div>
       );
     }
-
     return this.props.children; 
   }
 }
+
+// --- Confirmation Modal Component ---
+const ConfirmDeleteModal = ({ dataset, onConfirm, onCancel }) => {
+  if (!dataset) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+      <div className="bg-white rounded-2xl p-6 shadow-2xl max-w-md w-full">
+        <div className="flex items-center">
+          <AlertTriangle className="w-8 h-8 text-red-500 mr-4 flex-shrink-0" />
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Confirm Deletion</h2>
+            <p className="mt-2 text-gray-600">
+              Are you sure you want to permanently delete dataset{' '}
+              <span className="font-semibold">{dataset.id}</span>?
+              <br />
+              <span className="font-semibold truncate block">{dataset.title}</span>
+            </p>
+          </div>
+        </div>
+        <p className="mt-4 text-sm text-red-600 font-semibold">This action cannot be undone.</p>
+        <div className="mt-6 flex justify-end space-x-3">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-200 text-gray-800 hover:bg-gray-300 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onConfirm(dataset.id)}
+            className="px-4 py-2 rounded-lg text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors"
+          >
+            Delete Dataset
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
 // --- Packager Component ---
 const PackagerView = () => {
@@ -73,11 +99,12 @@ const PackagerView = () => {
                     </button>
                 </div>
                 {progress.status !== 'idle' && (
-                    <div className="mt-6 text-center">
+                    <div className="mt-6 text-center p-3 rounded-lg bg-gray-50">
                         {progress.status === 'starting' && <><Loader className="animate-spin inline-block mr-2" /><span>{progress.message}</span></>}
                         {progress.status === 'progress' && <><Loader className="animate-spin inline-block mr-2" /><span>{progress.message}</span></>}
                         {progress.status === 'done' && <><CheckCircle2 className="inline-block mr-2 text-green-500" /><span>{progress.message}</span></>}
                         {progress.status === 'error' && <><XCircle className="inline-block mr-2 text-red-500" /><span>Error: {progress.message}</span></>}
+                        {progress.status === 'exists' && <><AlertTriangle className="inline-block mr-2 text-yellow-500" /><span>{progress.message}</span></>}
                     </div>
                 )}
             </div>
@@ -86,7 +113,7 @@ const PackagerView = () => {
 };
 
 // --- LibraryView Component ---
-const LibraryView = ({ library, onViewPackage }) => { 
+const LibraryView = ({ library, onViewPackage, onDeleteRequest }) => { 
     if (library.length === 0) { 
         return ( 
             <div className="w-full text-center p-10 flex items-center justify-center"> 
@@ -103,14 +130,31 @@ const LibraryView = ({ library, onViewPackage }) => {
             <h2 className="text-3xl font-bold text-gray-900 mb-6">My Library</h2> 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"> 
                 {library.map(pkg => ( 
-                    <div key={pkg.id} className="bg-white rounded-2xl shadow-lg border border-gray-200 hover:shadow-xl hover:border-purple-300 transition-all cursor-pointer flex flex-col" onClick={() => onViewPackage(pkg)}> 
-                        <div className="h-40 bg-gray-200 rounded-t-2xl flex items-center justify-center"> 
-                            {pkg.thumbnail ? <img src={pkg.thumbnail} alt={`Thumbnail for dataset ${pkg.id}`} className="h-full w-full object-cover rounded-t-2xl" /> : <BrainCircuit className="w-16 h-16 text-gray-400" />} 
-                        </div> 
-                        <div className="p-4 flex flex-col flex-grow"> 
-                            <h3 className="font-bold text-lg text-purple-700">Dataset {pkg.id}</h3> 
-                            <p className="text-gray-600 mt-2 text-sm flex-grow">{pkg.title}</p> 
-                        </div> 
+                    <div key={pkg.id} className="bg-white rounded-2xl shadow-lg border border-gray-200 hover:shadow-xl hover:border-purple-300 transition-all flex flex-col group"> 
+                        <div className="relative h-40 bg-gray-200 rounded-t-2xl flex items-center justify-center cursor-pointer" onClick={() => onViewPackage(pkg)}>
+                            {pkg.thumbnail ? <img src={pkg.thumbnail} alt={`Thumbnail for dataset ${pkg.id}`} className="h-full w-full object-cover rounded-t-2xl" /> : <BrainCircuit className="w-16 h-16 text-gray-400" />}
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onDeleteRequest(pkg); }}
+                                className="absolute top-2 right-2 p-1.5 bg-white/50 backdrop-blur-sm rounded-full text-gray-700 hover:bg-red-500 hover:text-white transition-all opacity-0 group-hover:opacity-100"
+                                title="Delete Dataset"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <div className="p-4 flex flex-col flex-grow cursor-pointer" onClick={() => onViewPackage(pkg)}>
+                            <p className="text-xs font-semibold text-purple-600 uppercase">Dataset [{pkg.id}]</p>
+                            <h3 className="font-bold text-base text-gray-800 mt-1 flex-grow" title={pkg.title}>
+                                {pkg.title}
+                            </h3>
+                            {pkg.authors && pkg.authors !== 'N/A' && (
+                                <div className="mt-2 pt-2 border-t border-gray-100">
+                                    <p className="text-xs text-gray-500 flex items-center">
+                                        <Users className="w-3 h-3 mr-1.5 flex-shrink-0" />
+                                        <span className="truncate" title={pkg.authors}>{pkg.authors}</span>
+                                    </p>
+                                </div>
+                            )}
+                        </div>
                     </div> 
                 ))} 
             </div> 
@@ -173,8 +217,6 @@ const ContentViewer = ({ file, content, isLoading, packagePath }) => {
                     return <pre className="text-sm bg-gray-100 p-4 rounded-lg overflow-auto whitespace-pre-wrap">{content.data}</pre>; 
                 } 
             case 'table': 
-                // With the correct beta version installed, we can rely on the default renderer.
-                // The ErrorBoundary is kept as a good practice.
                 return ( 
                     <ErrorBoundary> 
                         <DataGrid columns={content.columns} rows={content.rows} className="h-96 rdg-light" /> 
@@ -261,8 +303,16 @@ const FileViewer = ({ manifest, packagePath }) => {
     return ( 
         <> 
             <div className="w-1/3 flex-shrink-0 bg-gray-50 border-r border-gray-200 overflow-y-auto p-4"> 
-                <h2 className="text-lg font-semibold text-gray-900 mb-1">Dataset: {manifest.dataset_id}</h2> 
-                <p className="text-xs text-gray-600 mb-3 truncate" title={manifest.dataset_title}>{manifest.dataset_title}</p> 
+                <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-4">
+                    <h2 className="text-lg font-bold text-gray-900 mb-1">Dataset: {manifest.dataset_id}</h2> 
+                    <p className="text-sm text-gray-700 mb-2" title={manifest.dataset_title}>{manifest.dataset_title}</p>
+                    {manifest.authors && manifest.authors !== 'N/A' && (
+                        <p className="text-xs text-gray-500 flex items-center" title={manifest.authors}>
+                            <Users className="w-3 h-3 mr-1.5 flex-shrink-0" />
+                            <span className="truncate">{manifest.authors}</span>
+                        </p>
+                    )}
+                </div>
                 <FileTreeView tree={manifest.file_tree} onFileSelect={setSelectedFile} selectedFile={selectedFile} /> 
             </div> 
             <div className="w-2/3 overflow-y-auto p-6"> 
@@ -278,6 +328,7 @@ const App = () => {
   const [library, setLibrary] = useState([]);
   const [activePackage, setActivePackage] = useState(null);
   const [manifest, setManifest] = useState(null);
+  const [datasetToDelete, setDatasetToDelete] = useState(null); // State for the confirmation modal
 
   const fetchLibrary = async () => {
     const lib = await window.electronAPI.getLibrary();
@@ -303,9 +354,20 @@ const App = () => {
     setActivePackage(null);
     setManifest(null);
   };
+  
+  const handleConfirmDelete = async (datasetId) => {
+      const updatedLibrary = await window.electronAPI.deleteDataset(datasetId);
+      setLibrary(updatedLibrary);
+      setDatasetToDelete(null); // Close the modal
+  };
 
   return (
     <div className="bg-white text-gray-800 min-h-screen font-sans flex flex-col">
+      <ConfirmDeleteModal 
+        dataset={datasetToDelete}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDatasetToDelete(null)}
+      />
       <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 shadow-sm sticky top-0 z-10 flex-shrink-0">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -325,7 +387,7 @@ const App = () => {
       </header>
       <main className="flex-grow flex overflow-hidden bg-gray-50">
         {view === 'packager' && <PackagerView />}
-        {view === 'library' && <LibraryView library={library} onViewPackage={handleViewPackage} />}
+        {view === 'library' && <LibraryView library={library} onViewPackage={handleViewPackage} onDeleteRequest={setDatasetToDelete} />}
         {view === 'viewer' && <FileViewer manifest={manifest} packagePath={activePackage.path} />}
       </main>
     </div>

@@ -68,15 +68,26 @@ def package_dataset(dataset_id, output_dir):
             os.chdir(original_cwd)
 
         send_message("progress", "Generating manifest...")
-        manifest = { "dataset_id": str(dataset_id), "dataset_title": "N/A", "thumbnail": None }
+        manifest = { 
+            "dataset_id": str(dataset_id), 
+            "dataset_title": "N/A", 
+            "authors": "N/A",
+            "thumbnail": None 
+        }
         desc_path = temp_dir / 'dataset_description.xlsx'
         if desc_path.exists():
             try:
                 wb = openpyxl.load_workbook(desc_path)
                 sheet = wb.active
-                metadata = {row[0].value: row[1].value for row in sheet.iter_rows(min_row=1) if row[0] and row[0].value}
+                # Read metadata, stripping whitespace from keys for consistency
+                metadata = {str(row[0].value).strip(): row[1].value for row in sheet.iter_rows(min_row=1) if row[0] and row[0].value}
                 manifest['dataset_title'] = metadata.get('Title', 'N/A')
-            except Exception: pass
+                # Extract contributors/authors, checking for common field names
+                author_string = metadata.get('Contributors', metadata.get('Authors', metadata.get('Author', 'N/A')))
+                manifest['authors'] = str(author_string) if author_string else "N/A"
+            except Exception:
+                # If parsing fails, we keep the default 'N/A' values
+                pass
         
         thumbnail_path = next((p for p in [temp_dir / 'thumbnail.jpg', temp_dir / 'thumbnail.png'] if p.exists()), None)
         if thumbnail_path:
