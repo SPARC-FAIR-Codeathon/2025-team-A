@@ -16,6 +16,7 @@ from urllib3.exceptions import InsecureRequestWarning
 # Configuration
 logging.getLogger("pennsieve").setLevel(logging.CRITICAL)
 warnings.filterwarnings("ignore", category=InsecureRequestWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 def send_message(status, message, value=None):
     """Sends a JSON message to stdout for the Electron app to read."""
@@ -67,25 +68,22 @@ def package_dataset(dataset_id, output_dir):
             send_message("error", f"No files found for dataset {dataset_id}.")
             return
 
-        # --- New Confirmation Logic ---
-        # Sum the size of all files, handling cases where size might be missing.
+        # --- Confirmation Logic ---
         total_size = sum(f.get('size', 0) or 0 for f in files_to_download)
         formatted_size = format_size(total_size)
         
-        # Send a confirmation request to the Electron app
         send_message(
             "confirm_download", 
             f"Total dataset size is {formatted_size}. Proceed with download?",
             {"totalSize": total_size, "formattedSize": formatted_size, "fileCount": len(files_to_download)}
         )
         
-        # Wait for a 'confirm' or 'cancel' signal from stdin
         confirmation = sys.stdin.readline().strip()
         
         if confirmation != 'confirm':
             send_message("idle", "Download cancelled by user.")
             return
-        # --- End of New Logic ---
+        # --- End of Logic ---
 
         total_files = len(files_to_download)
         original_cwd = os.getcwd()

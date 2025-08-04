@@ -6,7 +6,7 @@ const { PythonShell } = require('python-shell');
 const xlsx = require('xlsx');
 
 let store; 
-let activePackagerShell = null; // Variable to hold the active Python shell
+let activePackagerShell = null;
 
 async function createWindow() {
   const { default: Store } = await import('electron-store');
@@ -24,7 +24,7 @@ async function createWindow() {
   });
 
   win.loadURL('http://localhost:3000');
-  win.webContents.openDevTools();
+  // win.webContents.openDevTools(); // This line has been removed
 }
 
 app.whenReady().then(createWindow);
@@ -37,7 +37,6 @@ app.on('window-all-closed', () => {
 
 // --- IPC Handlers ---
 
-// New handler to open the file's location in the system's file explorer
 ipcMain.on('library:open-location', (event, filePath) => {
   if (filePath && fs.existsSync(filePath)) {
     shell.showItemInFolder(filePath);
@@ -118,11 +117,28 @@ ipcMain.on('packager:start', (event, datasetId) => {
         }
         store.set('library', currentLibrary);
       }
-    } catch (e) { /* Ignore non-json messages */ }
+    } catch (e) {
+        // This can happen if the Python script prints something that isn't JSON.
+        // We can safely ignore it in this context.
+    }
   });
 
   activePackagerShell.on('stderr', (stderr) => {
-    win.webContents.send('packager:progress', { status: 'error', message: `Python Error: ${stderr}` });
+    const messageString = String(stderr);
+
+    // Filter out known, harmless warnings from the Python script.
+    const isHarmlessWarning = 
+      messageString.includes('pkg_resources is deprecated') ||
+      messageString.includes('declare_namespace') ||
+      messageString.includes('SciCrunch API Key: Not Found');
+
+    if (isHarmlessWarning) {
+      // It's a known warning, so we do nothing and don't show it to the user.
+      return; 
+    }
+
+    // If it's any other message, treat it as a real error.
+    win.webContents.send('packager:progress', { status: 'error', message: `Python Error: ${messageString}` });
   });
 
   activePackagerShell.on('close', () => {
