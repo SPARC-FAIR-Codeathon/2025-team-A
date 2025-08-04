@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, FolderOpen, File, Folder, BrainCircuit, Download, Library, XCircle, CheckCircle2, Loader, DownloadCloud, Users, Trash2, AlertTriangle } from 'lucide-react';
+import { Box, FolderOpen, File, Folder, BrainCircuit, Download, Library, XCircle, CheckCircle2, Loader, DownloadCloud, Users, Trash2, AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import DataGrid from 'react-data-grid';
 import 'react-data-grid/lib/styles.css';
 
@@ -346,20 +346,76 @@ const TreeNode = ({ node, onFileSelect, selectedFile, path }) => {
     ); 
 };
 
+// --- New Pagination Component ---
+const Pagination = ({ currentPage, totalPages, onPageChange }) => {
+    if (totalPages <= 1) return null;
+
+    const handlePrev = () => onPageChange(Math.max(currentPage - 1, 1));
+    const handleNext = () => onPageChange(Math.min(currentPage + 1, totalPages));
+
+    return (
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200">
+            <button 
+                onClick={handlePrev} 
+                disabled={currentPage === 1}
+                className="px-3 py-1 text-sm font-medium text-gray-600 bg-white rounded-md border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+                <ChevronLeft className="w-4 h-4 inline-block mr-1" />
+                Prev
+            </button>
+            <span className="text-xs text-gray-500">
+                Page {currentPage} of {totalPages}
+            </span>
+            <button 
+                onClick={handleNext} 
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 text-sm font-medium text-gray-600 bg-white rounded-md border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+                Next
+                <ChevronRight className="w-4 h-4 inline-block ml-1" />
+            </button>
+        </div>
+    );
+};
+
 const FileTreeView = ({ tree, onFileSelect, selectedFile }) => { 
-    return ( 
-        <ul className="space-y-1"> 
-            {tree.map((node, index) => <TreeNode key={index} node={node} onFileSelect={onFileSelect} selectedFile={selectedFile} path={node.name} />)} 
-        </ul> 
+    const ITEMS_PER_PAGE = 10; // Changed to 10 items per page
+    const [currentPage, setCurrentPage] = useState(1);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [tree]);
+
+    const totalPages = Math.ceil(tree.length / ITEMS_PER_PAGE);
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    const paginatedTree = tree.slice(startIndex, endIndex);
+
+    return (
+        <div className="flex flex-col flex-grow min-h-0">
+            <div className="flex-grow overflow-y-auto pr-2">
+                <ul className="space-y-1"> 
+                    {paginatedTree.map((node, index) => <TreeNode key={startIndex + index} node={node} onFileSelect={onFileSelect} selectedFile={selectedFile} path={node.name} />)} 
+                </ul> 
+            </div>
+            <div className="flex-shrink-0 pt-2">
+                <Pagination 
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={setCurrentPage}
+                />
+            </div>
+        </div>
     ); 
 };
 
 // --- FileViewer Component ---
-const FileViewer = ({ manifest, packagePath }) => { 
+const FileViewer = ({ manifest, packagePath, onBack }) => { 
     const [selectedFile, setSelectedFile] = useState(null); 
     const [fileContent, setFileContent] = useState(null); 
     const [isLoading, setIsLoading] = useState(false); 
-    
+    const [searchTerm, setSearchTerm] = useState('');
+
     useEffect(() => { 
         const getFileContent = async () => { 
             if (selectedFile && packagePath) { 
@@ -373,10 +429,38 @@ const FileViewer = ({ manifest, packagePath }) => {
         getFileContent(); 
     }, [selectedFile, packagePath]); 
 
+    const filterTree = (nodes, term) => {
+        if (!term) return nodes;
+        const lowerCaseTerm = term.toLowerCase();
+
+        const filterNodes = (nodeList) => {
+            return nodeList.reduce((acc, node) => {
+                if (node.type === 'file') {
+                    if (node.name.toLowerCase().includes(lowerCaseTerm)) {
+                        acc.push(node);
+                    }
+                } else if (node.type === 'folder') {
+                    const filteredChildren = filterNodes(node.children || []);
+                    if (filteredChildren.length > 0 || node.name.toLowerCase().includes(lowerCaseTerm)) {
+                        acc.push({ ...node, children: filteredChildren });
+                    }
+                }
+                return acc;
+            }, []);
+        };
+        return filterNodes(nodes);
+    };
+
+    const filteredTree = manifest ? filterTree(manifest.file_tree, searchTerm) : [];
+
     return ( 
         <> 
-            <div className="w-1/3 flex-shrink-0 bg-gray-50 border-r border-gray-200 overflow-y-auto p-4"> 
-                <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-4">
+            <div className="w-1/3 flex-shrink-0 bg-gray-50 border-r border-gray-200 p-4 flex flex-col"> 
+                <button onClick={onBack} className="flex items-center gap-2 rounded-md bg-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-300 transition-all mb-4 self-start">
+                    <ArrowLeft className="w-4 h-4" />
+                    Back to Library
+                </button>
+                <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-4 flex-shrink-0">
                     <h2 className="text-lg font-bold text-gray-900 mb-1">Dataset: {manifest.dataset_id}</h2> 
                     <p className="text-sm text-gray-700 mb-2" title={manifest.dataset_title}>{manifest.dataset_title}</p>
                     {manifest.authors && manifest.authors !== 'N/A' && (
@@ -386,7 +470,17 @@ const FileViewer = ({ manifest, packagePath }) => {
                         </p>
                     )}
                 </div>
-                <FileTreeView tree={manifest.file_tree} onFileSelect={setSelectedFile} selectedFile={selectedFile} /> 
+                <div className="relative mb-4 flex-shrink-0">
+                    <input
+                        type="text"
+                        placeholder="Search files in this dataset..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500 text-sm"
+                    />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                </div>
+                <FileTreeView tree={filteredTree} onFileSelect={setSelectedFile} selectedFile={selectedFile} /> 
             </div> 
             <div className="w-2/3 overflow-y-auto p-6"> 
                 <ContentViewer file={selectedFile} content={fileContent} isLoading={isLoading} packagePath={packagePath} /> 
@@ -461,7 +555,7 @@ const App = () => {
       <main className="flex-grow flex overflow-hidden bg-gray-50">
         {view === 'packager' && <PackagerView />}
         {view === 'library' && <LibraryView library={library} onViewPackage={handleViewPackage} onDeleteRequest={setDatasetToDelete} />}
-        {view === 'viewer' && <FileViewer manifest={manifest} packagePath={activePackage.path} />}
+        {view === 'viewer' && <FileViewer manifest={manifest} packagePath={activePackage.path} onBack={handleReturnToLibrary} />}
       </main>
     </div>
   );
