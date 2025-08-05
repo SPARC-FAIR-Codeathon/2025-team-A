@@ -91,16 +91,23 @@ The application is structured into several key views: `BrowserView`, `PackagerVi
 
 ## Functionality Overview
 
-### Browse and Download Datasets
-
+### Browse and Download Datasets from SPARC Portal
+![Browser](src/assets/gif/browser.gif)
 Search for datasets on the SPARC portal. The interface shows which datasets you already have. Click "Download" to add a new dataset to your library.
 
-### Manage Your Local Library
+![Packager](src/assets/gif/packager.gif)
+Or enter the dataset id to get it downloaded to your offline library
 
+![Easy Download](src/assets/gif/easy_download.gif)
+Downloading is as easy as one click
+
+
+### Manage Your Local Library
+![transferrable](src/assets/gif/transferrable.gif)
 Your library provides a clean overview of all downloaded datasets. From here, you can select a package to view its contents, delete it, or open its folder.
 
 ### Explore Package Contents
-
+![Library](src/assets/gif/offline_library.gif)
 Once you open a dataset, you can navigate its file tree on the left and preview the content of any selected file on the right.
 
 ## Getting Started
@@ -130,7 +137,6 @@ We are continuously looking to improve spARCHIVE. Future enhancements may includ
 * **Advanced Search Filters**: Filter datasets by tags, authors, or other metadata fields.
 * **Expanded File Previews**: Add support for more complex file types, such as 3D models or specialized biological data formats.
 * **Dataset Versioning**: Manage multiple versions of the same dataset.
-* **Integration with Synapse**: Deeper integration with collaborative platforms like Synapse.
 
 ## Reporting Issues
 
