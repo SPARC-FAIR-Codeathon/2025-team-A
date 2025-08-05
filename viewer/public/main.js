@@ -24,6 +24,18 @@ async function createWindow() {
   });
 
   win.loadURL('http://localhost:3000');
+  
+  // --- NEW: Securely handle external links ---
+  // This is the recommended way to handle links that would open a new window.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    // We'll validate that the URL is a web link and open it in the user's default browser.
+    if (url.startsWith('http:') || url.startsWith('https:')) {
+      shell.openExternal(url);
+    }
+    // We deny Electron from creating a new window for security.
+    return { action: 'deny' };
+  });
+
   // To open developer tools, uncomment the line below
   // win.webContents.openDevTools();
 }
@@ -38,7 +50,66 @@ app.on('window-all-closed', () => {
 
 // --- IPC Handlers ---
 
-// NEW: Handles browsing for datasets
+// The 'shell:openExternal' handler has been removed as it's no longer needed.
+
+ipcMain.handle('library:upload', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    title: 'Import .sparchive File',
+    buttonLabel: 'Import',
+    filters: [{ name: 'spARCHIVE files', extensions: ['sparchive'] }],
+    properties: ['openFile']
+  });
+
+  if (canceled || filePaths.length === 0) {
+    return { status: 'canceled' };
+  }
+
+  const sourcePath = filePaths[0];
+  const outputDir = path.join(app.getPath('userData'), 'sparc_archives');
+  fs.mkdirSync(outputDir, { recursive: true });
+
+  try {
+    const zip = new AdmZip(sourcePath);
+    const manifestEntry = zip.getEntry('viewer_manifest.json');
+    if (!manifestEntry) {
+      return { status: 'error', message: 'Invalid archive: viewer_manifest.json not found.' };
+    }
+    const manifest = JSON.parse(manifestEntry.getData().toString('utf8'));
+    const datasetId = manifest.dataset_id;
+
+    if (!datasetId) {
+        return { status: 'error', message: 'Invalid manifest: dataset_id is missing.' };
+    }
+
+    const library = store.get('library', []);
+    const existingDataset = library.find(item => String(item.id) === String(datasetId));
+    if (existingDataset) {
+      return { status: 'exists', message: `Dataset ${datasetId} is already in your library.` };
+    }
+
+    const destPath = path.join(outputDir, `${datasetId}.sparchive`);
+    fs.copyFileSync(sourcePath, destPath);
+
+    const newEntry = {
+      id: manifest.dataset_id,
+      title: manifest.dataset_title,
+      authors: manifest.authors,
+      path: destPath,
+      thumbnail: manifest.thumbnail,
+    };
+    library.unshift(newEntry);
+    store.set('library', library);
+
+    return { status: 'success', message: 'Dataset imported successfully!', library };
+
+  } catch (e) {
+    console.error("Error importing dataset:", e);
+    return { status: 'error', message: e.message || 'Could not read or import the selected file.' };
+  }
+});
+
+
 ipcMain.handle('sparc:browse', async (event, { query, page, limit }) => {
   const options = {
     mode: 'text',
@@ -50,7 +121,6 @@ ipcMain.handle('sparc:browse', async (event, { query, page, limit }) => {
   
   try {
     const results = await PythonShell.run('packager.py', options);
-    // The python script prints a single line of JSON
     const parsedResult = JSON.parse(results[0]);
     if (parsedResult.error) {
       throw new Error(parsedResult.error);
@@ -80,7 +150,6 @@ ipcMain.on('packager:start', (event, datasetId) => {
     pythonPath: path.join(app.getAppPath(), '..', 'packager', 'venv', 'bin', 'python'),
     pythonOptions: ['-u'],
     scriptPath: path.join(app.getAppPath(), 'scripts'),
-    // UPDATED: Use the 'package' command and pass arguments
     args: ['package', datasetId, outputDir],
   };
 
@@ -112,7 +181,7 @@ ipcMain.on('packager:start', (event, datasetId) => {
         store.set('library', currentLibrary);
       }
     } catch (e) {
-      // Ignore non-JSON messages from the script
+      // Ignore non-JSON messages
     }
   });
   

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Globe, FolderOpen, File, Folder, BrainCircuit, Download, Library, XCircle, CheckCircle2, Loader, DownloadCloud, Users, Trash2, AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight, Search, ServerCrash, PackagePlus } from 'lucide-react';
+import { Globe, FolderOpen, File, Folder, BrainCircuit, Download, Library, XCircle, CheckCircle2, Loader, DownloadCloud, Users, Trash2, AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight, Search, ServerCrash, PackagePlus, UploadCloud as UploadIcon, Network } from 'lucide-react';
 import DataGrid from 'react-data-grid';
 import 'react-data-grid/lib/styles.css';
 
@@ -84,6 +84,12 @@ const GlobalProgressIndicator = ({ progress, onCancel }) => {
   
     const progressValue = (progress.value?.progress ?? 0) * 100;
   
+    let title = 'Downloading...';
+    if(isError) title = 'Error';
+    if(isSuccess) title = 'Success';
+    if(isExists) title = 'Notice';
+
+
     return (
       <div className={`fixed bottom-4 right-4 bg-white rounded-xl shadow-2xl border p-4 w-80 z-50`}>
         <div className="flex items-start">
@@ -92,9 +98,7 @@ const GlobalProgressIndicator = ({ progress, onCancel }) => {
             {isExists && <AlertTriangle className="w-6 h-6 text-yellow-500 mr-3 flex-shrink-0" />}
             {inProgress && <Loader className="w-6 h-6 text-purple-600 mr-3 flex-shrink-0 animate-spin" />}
             <div className="flex-grow">
-                <p className="font-bold text-gray-800">
-                    {isError ? 'Error' : isSuccess ? 'Complete' : isExists ? 'Notice' : 'Downloading...'}
-                </p>
+                <p className="font-bold text-gray-800">{title}</p>
                 <p className="text-sm text-gray-600 mt-1">{progress.message}</p>
             </div>
             {(isSuccess || isError || isExists) && (
@@ -121,9 +125,9 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
     if (totalPages <= 1) return null;
     return (
         <div className="flex items-center justify-center space-x-2 mt-6">
-            <button onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1} className="px-3 py-1 rounded-md bg-white border border-gray-300 text-sm font-medium hover:bg-gray-50 disabled:opacity-50">Prev</button>
+            <button onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1} className="px-3 py-1 rounded-md bg-white border border-gray-300 text-sm font-semibold hover:bg-gray-50 disabled:opacity-50">Prev</button>
             <span className="text-sm text-gray-600">Page {currentPage} of {totalPages}</span>
-            <button onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages} className="px-3 py-1 rounded-md bg-white border border-gray-300 text-sm font-medium hover:bg-gray-50 disabled:opacity-50">Next</button>
+            <button onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages} className="px-3 py-1 rounded-md bg-white border border-gray-300 text-sm font-semibold hover:bg-gray-50 disabled:opacity-50">Next</button>
         </div>
     );
 };
@@ -169,7 +173,7 @@ const BrowserView = ({ onStartPackage, library }) => {
     const onSearchSubmit = (e) => {
         e.preventDefault();
         setQuery(searchTerm);
-        setCurrentPage(1); // Reset to first page for new search
+        setCurrentPage(1);
         if (searchTerm) {
             handleSearch(1);
         } else {
@@ -236,7 +240,6 @@ const BrowserView = ({ onStartPackage, library }) => {
     );
 };
 
-// NEWLY RESTORED: PackagerView component
 const PackagerView = ({ onStartPackage }) => {
     const [datasetId, setDatasetId] = useState('');
 
@@ -244,7 +247,7 @@ const PackagerView = ({ onStartPackage }) => {
         e.preventDefault();
         if (datasetId.trim()) {
             onStartPackage(datasetId.trim());
-            setDatasetId(''); // Clear input after submission
+            setDatasetId('');
         }
     };
 
@@ -254,20 +257,9 @@ const PackagerView = ({ onStartPackage }) => {
                 <h2 className="text-2xl font-bold text-center text-gray-900">Package a Dataset by ID</h2>
                 <p className="text-center text-gray-600 mt-2">Enter a SPARC Dataset ID to download and add it to your library.</p>
                 <form onSubmit={handleSubmit} className="mt-6">
-                    <input 
-                        type="text" 
-                        value={datasetId} 
-                        onChange={(e) => setDatasetId(e.target.value)} 
-                        placeholder="e.g., 150" 
-                        className="w-full bg-gray-100 border border-gray-300 rounded-lg py-3 px-4 text-gray-800 focus:ring-2 focus:ring-purple-500" 
-                    />
-                    <button 
-                        type="submit" 
-                        className="w-full mt-4 rounded-lg bg-purple-600 px-6 py-3 text-lg font-semibold text-white shadow-md hover:bg-purple-700 transition-all disabled:bg-gray-400"
-                        disabled={!datasetId.trim()}
-                    >
-                        <Download className="inline-block w-5 h-5 mr-2"/>
-                        Download & Package
+                    <input type="text" value={datasetId} onChange={(e) => setDatasetId(e.target.value)} placeholder="e.g., 150" className="w-full bg-gray-100 border border-gray-300 rounded-lg py-3 px-4 text-gray-800 focus:ring-2 focus:ring-purple-500" />
+                    <button type="submit" className="w-full mt-4 rounded-lg bg-purple-600 px-6 py-3 text-lg font-semibold text-white shadow-md hover:bg-purple-700 transition-all disabled:bg-gray-400" disabled={!datasetId.trim()}>
+                        <Download className="inline-block w-5 h-5 mr-2"/> Download & Package
                     </button>
                 </form>
             </div>
@@ -275,21 +267,29 @@ const PackagerView = ({ onStartPackage }) => {
     );
 };
 
-const LibraryView = ({ library, onViewPackage, onDeleteRequest }) => { 
+const LibraryView = ({ library, onViewPackage, onDeleteRequest, onUploadRequest }) => { 
     if (library.length === 0) { 
         return ( 
             <div className="w-full text-center p-10 flex items-center justify-center h-full"> 
                 <div className="max-w-lg"> 
                     <Library className="mx-auto h-16 w-16 text-gray-400" /> 
                     <h2 className="mt-4 text-2xl font-bold text-gray-900">Your Library is Empty</h2> 
-                    <p className="mt-4 text-gray-600">Use the <span className="font-semibold text-purple-600">Browser</span> or <span className="font-semibold text-purple-600">Packager</span> to download datasets. They will appear here once complete.</p> 
+                    <p className="mt-4 text-gray-600">Use the <span className="font-semibold text-purple-600">Browser</span> or <span className="font-semibold text-purple-600">Packager</span> to download datasets, or upload an existing file.</p> 
+                    <button onClick={onUploadRequest} className="mt-6 inline-flex items-center gap-2 rounded-lg bg-purple-600 px-5 py-3 text-base font-semibold text-white shadow-md hover:bg-purple-700 transition-all">
+                        <UploadIcon className="w-5 h-5"/> Upload .sparchive File
+                    </button>
                 </div> 
             </div> 
         ); 
     } 
     return ( 
         <div className="w-full p-8 overflow-y-auto"> 
-            <h2 className="text-3xl font-bold text-gray-900 mb-6">My Library</h2> 
+            <div className="flex justify-between items-center mb-6">
+                 <h2 className="text-3xl font-bold text-gray-900">My Library</h2>
+                 <button onClick={onUploadRequest} className="flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm border border-gray-300 hover:bg-gray-100 transition-all">
+                    <UploadIcon className="w-4 h-4"/> Upload File
+                </button>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"> 
                 {library.map(pkg => ( 
                     <div key={pkg.id} className="bg-white rounded-2xl shadow-lg border border-gray-200 hover:shadow-xl hover:border-purple-300 transition-all flex flex-col group"> 
@@ -312,8 +312,6 @@ const LibraryView = ({ library, onViewPackage, onDeleteRequest }) => {
     ); 
 };
 
-
-// --- File Viewer and its Sub-components (Full Implementation) ---
 
 const ContentViewer = ({ file, content, isLoading, packagePath }) => { 
     const [isJsonExpanded, setIsJsonExpanded] = useState(false); 
@@ -514,15 +512,13 @@ const FileViewer = ({ manifest, packagePath, onBack }) => {
 };
 
 
-// --- Main App Component ---
 const App = () => {
-  const [view, setView] = useState('browser'); // Default view is now browser
+  const [view, setView] = useState('browser');
   const [library, setLibrary] = useState([]);
   const [activePackage, setActivePackage] = useState(null);
   const [manifest, setManifest] = useState(null);
   const [datasetToDelete, setDatasetToDelete] = useState(null);
   
-  // Global state for packaging progress and confirmation
   const [progress, setProgress] = useState({ status: 'idle', message: '' });
   const [downloadConfirmation, setDownloadConfirmation] = useState(null);
 
@@ -565,12 +561,26 @@ const App = () => {
     setProgress({ status: 'idle', message: '' });
   };
 
+  const handleUpload = async () => {
+    const result = await window.electronAPI.uploadToLibrary();
+
+    if (result.status === 'success') {
+        setLibrary(result.library);
+        setProgress({ status: 'done', message: result.message });
+    } else if (result.status === 'error' || result.status === 'exists') {
+        setProgress({ status: result.status, message: result.message });
+    }
+    // 'canceled' status is ignored
+  };
+
   const handleViewPackage = async (pkg) => {
     const manifestData = await window.electronAPI.getManifest(pkg.path);
     if (manifestData) {
       setActivePackage(pkg);
       setManifest(manifestData);
       setView('viewer');
+    } else {
+        setProgress({ status: 'error', message: 'Could not read package. It may be invalid or corrupted.' });
     }
   };
 
@@ -613,6 +623,15 @@ const App = () => {
               <NavButton targetView="browser" icon={Globe}>Browser</NavButton>
               <NavButton targetView="packager" icon={PackagePlus}>Packager</NavButton>
               <NavButton targetView="library" icon={Library}>My Library</NavButton>
+              <a 
+                href="http://65.109.180.201:8000/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-md transition-colors duration-200 border-2 bg-transparent text-gray-600 border-gray-300 hover:bg-gray-100"
+              >
+                <Network className="inline-block w-4 h-4 mr-2" />
+                Synapse
+              </a>
             </nav>
           </div>
         </div>
@@ -621,7 +640,7 @@ const App = () => {
       <main className="flex-grow flex overflow-hidden bg-gray-100">
         {view === 'browser' && <BrowserView onStartPackage={handleStartPackage} library={library} />}
         {view === 'packager' && <PackagerView onStartPackage={handleStartPackage} />}
-        {view === 'library' && <LibraryView library={library} onViewPackage={handleViewPackage} onDeleteRequest={setDatasetToDelete} />}
+        {view === 'library' && <LibraryView library={library} onViewPackage={handleViewPackage} onDeleteRequest={setDatasetToDelete} onUploadRequest={handleUpload} />}
         {view === 'viewer' && manifest && <FileViewer manifest={manifest} packagePath={activePackage.path} onBack={handleReturnToLibrary} />}
       </main>
     </div>

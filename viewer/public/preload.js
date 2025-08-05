@@ -1,10 +1,10 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  // NEW: Expose the browse function to the frontend
-  browseDatasets: (params) => ipcRenderer.invoke('sparc:browse', params),
+  // The 'openExternalLink' function has been removed as it's no longer needed.
   
-  // Existing functions
+  uploadToLibrary: () => ipcRenderer.invoke('library:upload'),
+  browseDatasets: (params) => ipcRenderer.invoke('sparc:browse', params),
   getManifest: (filePath) => ipcRenderer.invoke('sparc:getManifest', filePath),
   getFileContent: (packagePath, internalPath) => ipcRenderer.invoke('sparc:getFileContent', packagePath, internalPath),
   startPackaging: (datasetId) => ipcRenderer.send('packager:start', datasetId),
