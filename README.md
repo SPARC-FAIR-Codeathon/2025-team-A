@@ -112,7 +112,7 @@ Once you open a dataset, you can navigate its file tree on the left and preview 
 
 ### SYNAPSE Integration
 ![SYNAPSE](src/assets/gif/synapse.gif)
-We also developed SYNAPSE to generate synthetic EEG data, currently it's being hosted on another platform but in the future we're expecting it to be integrated to spARCHIVE
+We also developed SYNAPSE to generate synthetic EEG data, currently it's being hosted on another platform but in the future we're expecting it to be integrated to spARCHIVE. More info about SYNAPSE and the models that we developed can be checked from the branch `VAE-signal-generator` and `proto/signal-gen-api`
 
 ## Getting Started
 
