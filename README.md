@@ -110,9 +110,13 @@ Your library provides a clean overview of all downloaded datasets. From here, yo
 ![Library](src/assets/gif/offline_library.gif)
 Once you open a dataset, you can navigate its file tree on the left and preview the content of any selected file on the right.
 
+### SYNAPSE Integration
+![SYNAPSE](src/assets/gif/synapse.gif)
+We also developed SYNAPSE to generate synthetic EEG data, currently it's being hosted on another platform but in the future we're expecting it to be integrated to spARCHIVE
+
 ## Getting Started
 
-To run spARCHIVE on your local machine, follow these setup instructions:
+To run spARCHIVE on your local machine, download the [latest release](https://github.com/SPARC-FAIR-Codeathon/2025-team-A/releases/tag/0.10) or if you want to run the development version, follow these setup instructions:
 
 1.  **Clone the repository:**
     ```bash
@@ -137,8 +141,3 @@ We are continuously looking to improve spARCHIVE. Future enhancements may includ
 * **Advanced Search Filters**: Filter datasets by tags, authors, or other metadata fields.
 * **Expanded File Previews**: Add support for more complex file types, such as 3D models or specialized biological data formats.
 * **Dataset Versioning**: Manage multiple versions of the same dataset.
-
-## Reporting Issues
-
-* If you encounter a bug or have a feature request, please create a new issue in our GitHub repository.
-* If you've solved an issue, we welcome you to submit a pull request!
