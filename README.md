@@ -104,7 +104,7 @@ Or enter the dataset id to get it downloaded to your offline library
 
 ### Manage Your Local Library
 ![transferrable](src/assets/gif/transferrable.gif)
-Your library provides a clean overview of all downloaded datasets. From here, you can select a package to view its contents, delete it, or open its folder.
+Your library provides a clean overview of all downloaded datasets. From here, you can select a package to view its contents, delete it, or open its folder. You can also upload your own `.sparchive` file to your library.
 
 ### Explore Package Contents
 ![Library](src/assets/gif/offline_library.gif)
