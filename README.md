@@ -1,4 +1,4 @@
-# spARCHIVE
+# spARCHIVE : Offline SPARC Data Viewer
 
 <p align="center">
   <img src="src/assets/img/sparchive_logo_gh.png" />
@@ -115,7 +115,7 @@ Once you open a dataset, you can navigate its file tree on the left and preview 
 We also developed SYNAPSE to generate synthetic EEG data, currently it's being hosted on another platform but in the future we're expecting it to be integrated to spARCHIVE. More info about SYNAPSE and the models that we developed can be checked from the branch `VAE-signal-generator` and `proto/signal-gen-api`
 
 ## Getting Started
-
+![installation](src/assets/gif/installation.gif)
 To run spARCHIVE on your local machine, download the [latest release](https://github.com/SPARC-FAIR-Codeathon/2025-team-A/releases/tag/0.10) or if you want to run the development version, follow these setup instructions:
 
 1.  **Clone the repository:**
