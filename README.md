@@ -95,11 +95,11 @@ The application is structured into several key views: `BrowserView`, `PackagerVi
 ![Browser](src/assets/gif/browser.gif)
 Search for datasets on the SPARC portal. The interface shows which datasets you already have. Click "Download" to add a new dataset to your library.
 
-![Packager](src/assets/gif/packager.gif)
-Or enter the dataset id to get it downloaded to your offline library
-
 ![Easy Download](src/assets/gif/easy_download.gif)
 Downloading is as easy as one click
+
+![Packager](src/assets/gif/packager.gif)
+Or enter the dataset id to get it downloaded to your offline library
 
 
 ### Manage Your Local Library
