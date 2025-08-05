@@ -4,11 +4,63 @@ const fs = require('fs');
 const AdmZip = require('adm-zip');
 const { PythonShell } = require('python-shell');
 const xlsx = require('xlsx');
+const { spawn } = require('child_process');
 
-let store; 
+let store;
 let activePackagerShell = null;
 
+// This helper function now correctly handles running either the Python script in development
+// or the compiled executable in the packaged application.
+function runBackendProcess(args, onMessage, onError, onComplete) {
+    // FIX: The local variable is renamed to 'childProcess' to avoid shadowing the global 'process' object.
+    let childProcess;
+
+    if (app.isPackaged) {
+        // --- PRODUCTION MODE ---
+        // The code below now correctly accesses the global 'process' object for 'platform' and 'resourcesPath'.
+        const execName = process.platform === 'win32' ? 'packager.exe' : 'packager';
+        const executablePath = path.join(process.resourcesPath, 'bin', execName);
+        
+        childProcess = spawn(executablePath, args);
+
+        childProcess.stdout.on('data', (data) => {
+            const messages = data.toString().split('\n').filter(msg => msg.trim().length > 0);
+            messages.forEach(msg => onMessage(msg));
+        });
+
+    } else {
+        // --- DEVELOPMENT MODE ---
+        const pythonExecutable = process.platform === 'win32' ? 'python.exe' : 'python';
+        const venvPath = path.join(__dirname, '..', 'packager', 'venv', 'bin', pythonExecutable);
+        const options = {
+            mode: 'text',
+            pythonPath: venvPath,
+            pythonOptions: ['-u'],
+            scriptPath: path.join(__dirname, '..', 'scripts'),
+            args: args
+        };
+        
+        childProcess = new PythonShell('packager.py', options);
+        childProcess.on('message', onMessage);
+    }
+
+    // --- COMMON EVENT HANDLERS ---
+    childProcess.stderr.on('data', (data) => {
+        onError(data.toString());
+    });
+
+    childProcess.on('close', (code) => {
+        if (onComplete) {
+            onComplete(code);
+        }
+    });
+    
+    return childProcess;
+}
+
+
 async function createWindow() {
+  const isDev = (await import('electron-is-dev')).default;
   const { default: Store } = await import('electron-store');
   store = new Store();
 
@@ -23,21 +75,22 @@ async function createWindow() {
     },
   });
 
-  win.loadURL('http://localhost:3000');
+  win.loadURL(
+    isDev
+      ? 'http://localhost:3000'
+      : `file://${path.join(__dirname, '../build/index.html')}`
+  );
   
-  // --- NEW: Securely handle external links ---
-  // This is the recommended way to handle links that would open a new window.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    // We'll validate that the URL is a web link and open it in the user's default browser.
     if (url.startsWith('http:') || url.startsWith('https:')) {
       shell.openExternal(url);
     }
-    // We deny Electron from creating a new window for security.
     return { action: 'deny' };
   });
 
-  // To open developer tools, uncomment the line below
-  // win.webContents.openDevTools();
+  if (isDev) {
+    win.webContents.openDevTools();
+  }
 }
 
 app.whenReady().then(createWindow);
@@ -50,7 +103,101 @@ app.on('window-all-closed', () => {
 
 // --- IPC Handlers ---
 
-// The 'shell:openExternal' handler has been removed as it's no longer needed.
+ipcMain.handle('sparc:browse', async (event, { query, page, limit }) => {
+    return new Promise((resolve, reject) => {
+        const scriptArgs = ['browse', '--query', query, '--page', String(page), '--limit', String(limit)];
+        let output = '';
+
+        runBackendProcess(
+            scriptArgs,
+            (message) => {
+                output += message;
+            },
+            (error) => {
+                console.error("Browse Error (stderr):", error);
+                // Reject with the actual error so the frontend can display it
+                reject(new Error(error));
+            },
+            (code) => {
+                if (code === 0) {
+                    try {
+                        const parsedResult = JSON.parse(output);
+                        if (parsedResult.error) {
+                           reject(new Error(parsedResult.error));
+                        } else {
+                           resolve(parsedResult);
+                        }
+                    } catch (e) {
+                        reject(new Error("Failed to parse JSON from Python script."));
+                    }
+                } else {
+                    // Include the output in the rejection for better debugging
+                    reject(new Error(`Python script exited with code ${code}. Output: ${output}`));
+                }
+            }
+        );
+    });
+});
+
+ipcMain.on('packager:start', (event, datasetId) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  
+  const library = store.get('library', []);
+  const existingDataset = library.find(item => String(item.id) === String(datasetId));
+  if (existingDataset) {
+    win.webContents.send('packager:progress', { status: 'exists', message: `Dataset ${datasetId} is already in your library.` });
+    return;
+  }
+
+  const outputDir = path.join(app.getPath('userData'), 'sparc_archives');
+  fs.mkdirSync(outputDir, { recursive: true });
+
+  const scriptArgs = ['package', datasetId, outputDir];
+
+  if (activePackagerShell) {
+      if (activePackagerShell.kill) activePackagerShell.kill();
+      else if (activePackagerShell.terminate) activePackagerShell.terminate();
+  }
+  
+  activePackagerShell = runBackendProcess(
+      scriptArgs,
+      (message) => { // onMessage
+        try {
+            const progress = JSON.parse(message);
+            win.webContents.send('packager:progress', progress);
+            if (progress.status === 'done') {
+                const currentLibrary = store.get('library', []);
+                const newEntry = {
+                    id: progress.value.manifest.dataset_id,
+                    title: progress.value.manifest.dataset_title,
+                    authors: progress.value.manifest.authors,
+                    path: progress.value.path,
+                    thumbnail: progress.value.manifest.thumbnail,
+                };
+                const existingIndex = currentLibrary.findIndex(item => item.id === newEntry.id);
+                if (existingIndex > -1) {
+                    currentLibrary[existingIndex] = newEntry;
+                } else {
+                    currentLibrary.unshift(newEntry);
+                }
+                store.set('library', currentLibrary);
+            }
+        } catch (e) {
+            console.warn("Received non-JSON message from backend:", message);
+        }
+      },
+      (error) => { // onError
+        const isHarmless = error.includes('pkg_resources is deprecated') || error.includes('declare_namespace') || error.includes('SciCrunch API Key: Not Found');
+        if (!isHarmless) {
+            win.webContents.send('packager:progress', { status: 'error', message: `Python Error: ${error}` });
+        }
+      },
+      () => { // onComplete
+        activePackagerShell = null;
+      }
+  );
+});
+
 
 ipcMain.handle('library:upload', async (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
@@ -109,98 +256,9 @@ ipcMain.handle('library:upload', async (event) => {
   }
 });
 
-
-ipcMain.handle('sparc:browse', async (event, { query, page, limit }) => {
-  const options = {
-    mode: 'text',
-    pythonPath: path.join(app.getAppPath(), '..', 'packager', 'venv', 'bin', 'python'),
-    pythonOptions: ['-u'],
-    scriptPath: path.join(app.getAppPath(), 'scripts'),
-    args: ['browse', '--query', query, '--page', String(page), '--limit', String(limit)],
-  };
-  
-  try {
-    const results = await PythonShell.run('packager.py', options);
-    const parsedResult = JSON.parse(results[0]);
-    if (parsedResult.error) {
-      throw new Error(parsedResult.error);
-    }
-    return parsedResult;
-  } catch (err) {
-    console.error("Failed to browse datasets:", err);
-    return { error: err.message || 'An unknown error occurred in the Python script.' };
-  }
-});
-
-ipcMain.on('packager:start', (event, datasetId) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  
-  const library = store.get('library', []);
-  const existingDataset = library.find(item => String(item.id) === String(datasetId));
-  if (existingDataset) {
-    win.webContents.send('packager:progress', { status: 'exists', message: `Dataset ${datasetId} is already in your library.` });
-    return;
-  }
-
-  const outputDir = path.join(app.getPath('userData'), 'sparc_archives');
-  fs.mkdirSync(outputDir, { recursive: true });
-
-  const options = {
-    mode: 'text',
-    pythonPath: path.join(app.getAppPath(), '..', 'packager', 'venv', 'bin', 'python'),
-    pythonOptions: ['-u'],
-    scriptPath: path.join(app.getAppPath(), 'scripts'),
-    args: ['package', datasetId, outputDir],
-  };
-
-  if (activePackagerShell && !activePackagerShell.killed) {
-    activePackagerShell.kill();
-  }
-
-  activePackagerShell = new PythonShell('packager.py', options);
-
-  activePackagerShell.on('message', (message) => {
-    try {
-      const progress = JSON.parse(message);
-      win.webContents.send('packager:progress', progress);
-      if (progress.status === 'done') {
-        const currentLibrary = store.get('library', []);
-        const newEntry = {
-            id: progress.value.manifest.dataset_id,
-            title: progress.value.manifest.dataset_title,
-            authors: progress.value.manifest.authors,
-            path: progress.value.path,
-            thumbnail: progress.value.manifest.thumbnail,
-        };
-        const existingIndex = currentLibrary.findIndex(item => item.id === newEntry.id);
-        if (existingIndex > -1) {
-            currentLibrary[existingIndex] = newEntry;
-        } else {
-            currentLibrary.unshift(newEntry);
-        }
-        store.set('library', currentLibrary);
-      }
-    } catch (e) {
-      // Ignore non-JSON messages
-    }
-  });
-  
-  activePackagerShell.on('stderr', (stderr) => {
-    const messageString = String(stderr);
-    const isHarmlessWarning = messageString.includes('pkg_resources is deprecated') || messageString.includes('declare_namespace') || messageString.includes('SciCrunch API Key: Not Found');
-    if (!isHarmlessWarning) {
-      win.webContents.send('packager:progress', { status: 'error', message: `Python Error: ${messageString}` });
-    }
-  });
-
-  activePackagerShell.on('close', () => {
-    activePackagerShell = null;
-  });
-});
-
 ipcMain.on('packager:confirm', (event, confirmed) => {
   if (activePackagerShell) {
-    activePackagerShell.send(confirmed ? 'confirm' : 'cancel');
+    activePackagerShell.stdin.write(confirmed ? 'confirm\n' : 'cancel\n');
   }
 });
 

@@ -617,7 +617,7 @@ const App = () => {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setView('browser')}>
-              <img src="/sparchive_logo.png" alt="spARCHIVE Logo" className="h-10 w-auto" />
+              <img src="./sparchive_logo.png" alt="spARCHIVE Logo" className="h-10 w-auto" />
             </div>
             <nav className="flex items-center space-x-2">
               <NavButton targetView="browser" icon={Globe}>Browser</NavButton>

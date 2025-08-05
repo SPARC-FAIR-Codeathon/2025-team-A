@@ -2,7 +2,7 @@
   "name": "sparchive",
   "productName": "spARCHIVE",
   "homepage": "./",
-  "main": "public/main.js",
+  "main": "public/electron.js",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
@@ -11,6 +11,7 @@
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
     "adm-zip": "^0.5.16",
+    "electron-is-dev": "^3.0.1",
     "electron-store": "^9.0.0",
     "lucide-react": "^0.536.0",
     "python-shell": "^5.0.0",
@@ -24,10 +25,13 @@
   "scripts": {
     "start": "concurrently \"npm run react-start\" \"npm run electron-start\"",
     "react-start": "react-scripts start",
-    "electron-start": "wait-on http://localhost:3000 && electron .",
+    "electron-start": "electron .",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "postinstall": "npm run build-python",
+    "build-python": "./packager/venv/bin/pyinstaller --noconfirm --onefile --distpath ./resources/bin --name packager --hidden-import=openpyxl --hidden-import=pkg_resources scripts/packager.py",
+    "dist": "npm run build && npm run build-python && electron-builder"
   },
   "eslintConfig": {
     "extends": [
@@ -56,16 +60,32 @@
   "build": {
     "appId": "com.sparchive.app",
     "productName": "spARCHIVE",
-    "files": [
-      "build/**/*",
-      "node_modules/**/*",
-      "scripts/**/*"
+    "extraResources": [
+      {
+        "from": "./resources/bin",
+        "to": "bin",
+        "filter": [
+          "**/*"
+        ]
+      }
     ],
     "mac": {
-      "icon": "build/icon.icns"
+      "icon": "public/icon.icns",
+      "target": {
+        "target": "dmg",
+        "arch": [
+          "x64",
+          "arm64"
+        ]
+      }
     },
     "win": {
-      "icon": "build/icon.ico"
+      "icon": "public/icon.ico",
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     }
   }
 }
