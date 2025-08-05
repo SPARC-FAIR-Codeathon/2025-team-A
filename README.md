@@ -15,7 +15,7 @@
 7.  [Functionality Overview](#functionality-overview)
 8.  [Getting Started](#getting-started)
 9.  [Future Directions](#future-directions)
-10. [Reporting Issues](#reporting-issues)
+9.  [Team Members](#team-members)
 
 ## Introduction
 
@@ -141,3 +141,8 @@ We are continuously looking to improve spARCHIVE. Future enhancements may includ
 * **Advanced Search Filters**: Filter datasets by tags, authors, or other metadata fields.
 * **Expanded File Previews**: Add support for more complex file types, such as 3D models or specialized biological data formats.
 * **Dataset Versioning**: Manage multiple versions of the same dataset.
+
+## Team Members
+- Haries Ramdhani (Team Lead, Developer (Fullstack))
+- Akram Zarchini (Developer (AI/ML), Documentation)
+- Maryam Saeedi (Developer (Data/API), Documentation)
